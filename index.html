@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQ EY Service Flow Simulator — A350 MH</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --surface2: #1e2230;
+    --border: #2a2f40;
+    --accent: #c8a96e;
+    --accent2: #5b8dd9;
+    --accent3: #e05c5c;
+    --accent4: #4ec994;
+    --text: #e8eaf0;
+    --text-dim: #6b7280;
+    --text-mid: #9ca3af;
+    --sq-gold: #c8a96e;
+    --sq-dark: #1a1c24;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+  }
+
+  .sq-badge {
+    background: var(--sq-gold);
+    color: #000;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+    letter-spacing: 2px;
+  }
+
+  header h1 {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: var(--text-mid);
+    font-weight: 400;
+  }
+
+  header h1 span { color: var(--sq-gold); }
+
+  .sim-status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+  .status-dot.running { background: var(--accent4); animation: pulse 1s infinite; }
+  .status-dot.done { background: var(--sq-gold); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .main-layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: calc(100vh - 57px);
+  }
+
+  .sidebar {
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    overflow-y: auto;
+    padding: 0;
+  }
+
+  .sidebar-section {
+    border-bottom: 1px solid var(--border);
+    padding: 20px;
+  }
+
+  .sidebar-section h2 {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--sq-gold);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+  }
+
+  .content-area {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .tab {
+    padding: 12px 20px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all .2s;
+    text-transform: uppercase;
+  }
+
+  .tab.active {
+    color: var(--sq-gold);
+    border-bottom-color: var(--sq-gold);
+  }
+
+  .tab-content { display: none; overflow: auto; }
+  .tab-content.active { display: block; }
+
+  /* Cabin map */
+  .cabin-wrapper {
+    padding: 24px;
+    overflow: auto;
+  }
+
+  .cabin-container {
+    position: relative;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  .cabin-header-labels {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 0 60px;
+  }
+
+  .zone-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border: 1px solid;
+  }
+
+  .zone-label.fwd { color: var(--accent2); border-color: var(--accent2); background: rgba(91,141,217,.1); }
+  .zone-label.mid { color: var(--accent); border-color: var(--accent); background: rgba(200,169,110,.1); }
+  .zone-label.aft { color: var(--accent4); border-color: var(--accent4); background: rgba(78,201,148,.1); }
+
+  .aircraft-body {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 0;
+    position: relative;
+  }
+
+  .row-group {
+    display: flex;
+    align-items: center;
+    padding: 1.5px 8px;
+    gap: 4px;
+  }
+
+  .row-num {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    width: 22px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .seats-left, .seats-right {
+    display: flex;
+    gap: 3px;
+    flex: 1;
+  }
+
+  .seats-right { justify-content: flex-start; }
+
+  .aisle-gap {
+    width: 20px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .seat {
+    width: 18px;
+    height: 14px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all .15s;
+    position: relative;
+  }
+
+  .seat:hover { border-color: var(--text-mid); }
+  .seat.spml {
+    background: rgba(224,92,92,.25);
+    border-color: var(--accent3);
+  }
+  .seat.served {
+    background: rgba(78,201,148,.3);
+    border-color: var(--accent4);
+  }
+  .seat.in-progress {
+    background: rgba(200,169,110,.35);
+    border-color: var(--sq-gold);
+    animation: seatPulse .8s infinite;
+  }
+
+  @keyframes seatPulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+  .trolley-indicator {
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 40px;
+    background: var(--sq-gold);
+    border-radius: 2px;
+    opacity: 0;
+    transition: top .5s ease, opacity .3s;
+  }
+
+  /* Crew cards */
+  .crew-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+
+  .crew-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .crew-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .crew-name-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 2px 4px;
+    width: 100%;
+    outline: none;
+  }
+
+  .crew-name-input:focus { border-bottom-color: var(--sq-gold); }
+
+  label.field-label {
+    display: block;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+
+  select, input[type=range] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 8px;
+    font-family: var(--sans);
+    font-size: 12px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  select:focus { border-color: var(--sq-gold); }
+
+  .field-row {
+    margin-bottom: 8px;
+  }
+
+  .competency-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-mid);
+    margin-top: 2px;
+  }
+
+  .comp-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+
+  .comp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent3), var(--sq-gold), var(--accent4));
+    border-radius: 2px;
+    transition: width .3s;
+  }
+
+  /* SPML panel */
+  .spml-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .spml-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .spml-row input[type=number] {
+    width: 50px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .spml-row select {
+    flex: 1;
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  .btn-add-spml {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 6px;
+    width: 100%;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all .2s;
+    margin-top: 6px;
+  }
+
+  .btn-add-spml:hover { border-color: var(--sq-gold); color: var(--sq-gold); }
+
+  .btn-remove {
+    background: transparent;
+    border: none;
+    color: var(--accent3);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    line-height: 1;
+  }
+
+  /* Config */
+  .config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .config-item label {
+    display: block;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .config-item input[type=number] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    border-radius: 4px;
+    outline: none;
+  }
+
+  .config-item input:focus { border-color: var(--sq-gold); }
+
+  /* Controls */
+  .sim-controls {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 10px 18px;
+    border: 1px solid;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all .2s;
+    text-transform: uppercase;
+  }
+
+  .btn-primary {
+    background: var(--sq-gold);
+    border-color: var(--sq-gold);
+    color: #000;
+    font-weight: 700;
+  }
+
+  .btn-primary:hover { background: #d4b578; }
+  .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-mid);
+  }
+
+  .btn-secondary:hover { border-color: var(--text-mid); color: var(--text); }
+
+  .speed-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .speed-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .speed-select {
+    width: auto;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  /* Timeline */
+  .timeline-wrapper {
+    padding: 20px 24px;
+    overflow: auto;
+  }
+
+  .timeline-header {
+    display: flex;
+    gap: 0;
+    margin-bottom: 8px;
+    padding-left: 120px;
+  }
+
+  .time-tick {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    flex: 1;
+    text-align: left;
+    position: relative;
+  }
+
+  .time-tick::before {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: 0;
+    width: 1px;
+    height: 8px;
+    background: var(--border);
+  }
+
+  .timeline-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 6px;
+    height: 32px;
+  }
+
+  .timeline-label {
+    width: 120px;
+    font-size: 11px;
+    color: var(--text-mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+    padding-right: 12px;
+    font-family: var(--mono);
+  }
+
+  .timeline-track {
+    flex: 1;
+    height: 100%;
+    background: var(--surface2);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .timeline-segment {
+    position: absolute;
+    top: 4px;
+    height: calc(100% - 8px);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 9px;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: width .5s ease, left .5s ease;
+  }
+
+  .timeline-cursor {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--sq-gold);
+    pointer-events: none;
+    z-index: 10;
+    transition: left .5s linear;
+  }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 20px 24px;
+  }
+
+  .stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 26px;
+    color: var(--sq-gold);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .stat-unit {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-left: 4px;
+  }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* Logs */
+  .log-area {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    height: 160px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1.8;
+    margin: 0 24px 16px;
+  }
+
+  .log-line { color: var(--text-dim); }
+  .log-line.highlight { color: var(--sq-gold); }
+  .log-line.spml-log { color: var(--accent3); }
+  .log-line.done-log { color: var(--accent4); }
+  .log-line.info { color: var(--accent2); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .direction-toggle {
+    display: flex;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .dir-btn {
+    flex: 1;
+    padding: 8px 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    transition: all .2s;
+    text-align: center;
+  }
+
+  .dir-btn.active {
+    background: var(--sq-gold);
+    color: #000;
+    font-weight: 700;
+  }
+
+  .progress-bar-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .overall-progress {
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .overall-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--sq-gold));
+    border-radius: 2px;
+    transition: width .5s ease;
+    width: 0%;
+  }
+
+  .progress-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  .crew-zone-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+
+  .elapsed-time {
+    font-family: var(--mono);
+    font-size: 18px;
+    color: var(--text);
+    letter-spacing: 2px;
+  }
+
+  .section-divider {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    padding: 8px 0;
+    border-top: 1px dashed var(--border);
+    margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="sq-badge">SQ SIM</div>
+  <h1>EY SERVICE FLOW — <span>A350 MEDIUM HAUL</span></h1>
+  <div class="sim-status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">READY</span>
+  </div>
+</header>
+
+<div class="main-layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- Flight Config -->
+    <div class="sidebar-section">
+      <h2>Flight Config</h2>
+      <div class="config-grid">
+        <div class="config-item">
+          <label>Total Rows</label>
+          <input type="number" id="totalRows" value="40" min="10" max="60">
+        </div>
+        <div class="config-item">
+          <label>Seats/Row</label>
+          <select id="seatsPerRow">
+            <option value="9" selected>9 (3-3-3)</option>
+            <option value="8">8 (2-4-2)</option>
+            <option value="10">10 (3-4-3)</option>
+          </select>
+        </div>
+        <div class="config-item">
+          <label>Pax Load %</label>
+          <input type="number" id="paxLoad" value="85" min="10" max="100">
+        </div>
+        <div class="config-item">
+          <label>Meal Choices</label>
+          <input type="number" id="mealChoices" value="2" min="1" max="4">
+        </div>
+      </div>
+      <div class="field-row" style="margin-top:10px">
+        <label class="field-label">Service Direction</label>
+        <div class="direction-toggle">
+          <button class="dir-btn active" id="dirFwd" onclick="setDirection('fwd-aft')">FWD → AFT</button>
+          <button class="dir-btn" id="dirAft" onclick="setDirection('aft-fwd')">AFT → FWD</button>
+          <button class="dir-btn" id="dirBoth" onclick="setDirection('both')">BOTH</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Crew Setup -->
+    <div class="sidebar-section">
+      <h2>Crew Assignment</h2>
+      <div id="crewCards"></div>
+      <button class="btn-add-spml" onclick="addCrew()" style="margin-top:0">+ ADD CREW</button>
+    </div>
+
+    <!-- SPML -->
+    <div class="sidebar-section">
+      <h2>Special Meals (SPML)</h2>
+      <div class="spml-list" id="spmlList"></div>
+      <button class="btn-add-spml" onclick="addSpml()">+ ADD SPML</button>
+    </div>
+
+    <!-- Timing params -->
+    <div class="sidebar-section">
+      <h2>Timing Params (sec)</h2>
+      <div class="config-grid">
+        <div class="config-item">
+          <label>Normal meal</label>
+          <input type="number" id="timeNormal" value="18" min="5" max="60">
+        </div>
+        <div class="config-item">
+          <label>SPML delay</label>
+          <input type="number" id="timeSpml" value="35" min="10" max="120">
+        </div>
+        <div class="config-item">
+          <label>Row move</label>
+          <input type="number" id="timeMove" value="4" min="1" max="15">
+        </div>
+        <div class="config-item">
+          <label>Trolley setup</label>
+          <input type="number" id="timeTrolley" value="60" min="20" max="180">
+        </div>
+        <div class="config-item">
+          <label>Drink service</label>
+          <input type="number" id="timeDrink" value="12" min="5" max="30">
+        </div>
+        <div class="config-item">
+          <label>Tray collect</label>
+          <input type="number" id="timeCollect" value="10" min="5" max="30">
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="content-area">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('cabin')">Cabin Map</div>
+      <div class="tab" onclick="switchTab('timeline')">Timeline</div>
+      <div class="tab" onclick="switchTab('stats')">Stats & Logs</div>
+    </div>
+
+    <!-- CABIN TAB -->
+    <div class="tab-content active" id="tab-cabin">
+      <div class="cabin-wrapper">
+        <div class="cabin-container">
+          <div class="cabin-header-labels" id="zoneLabels">
+            <div class="zone-label fwd">FWD ZONE</div>
+            <div class="zone-label mid">MID ZONE</div>
+            <div class="zone-label aft">AFT ZONE</div>
+          </div>
+          <div class="aircraft-body" id="cabinGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TIMELINE TAB -->
+    <div class="tab-content" id="tab-timeline">
+      <div class="timeline-wrapper">
+        <div id="timelineContent"></div>
+      </div>
+    </div>
+
+    <!-- STATS TAB -->
+    <div class="tab-content" id="tab-stats">
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card">
+          <div class="stat-label">Total Pax Served</div>
+          <div class="stat-value" id="stat-pax">—</div>
+          <div class="stat-sub">Economy cabin</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Service Duration</div>
+          <div class="stat-value" id="stat-duration">—<span class="stat-unit">min</span></div>
+          <div class="stat-sub">Meal + drinks round</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">SPML Handled</div>
+          <div class="stat-value" id="stat-spml">—</div>
+          <div class="stat-sub">Special meals</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg per Pax</div>
+          <div class="stat-value" id="stat-avg">—<span class="stat-unit">sec</span></div>
+          <div class="stat-sub">Including wait time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Crew Efficiency</div>
+          <div class="stat-value" id="stat-eff">—<span class="stat-unit">%</span></div>
+          <div class="stat-sub">vs ideal baseline</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Bottleneck</div>
+          <div class="stat-value" style="font-size:16px" id="stat-bottleneck">—</div>
+          <div class="stat-sub">Slowest crew member</div>
+        </div>
+      </div>
+      <div class="log-area" id="logArea"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="sim-controls">
+      <button class="btn btn-primary" id="btnRun" onclick="runSimulation()">▶ RUN</button>
+      <button class="btn btn-secondary" id="btnReset" onclick="resetSimulation()">↺ RESET</button>
+      <div class="progress-bar-wrapper">
+        <div class="overall-progress">
+          <div class="overall-progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-label" id="progressLabel">Configure and press RUN</div>
+      </div>
+      <div class="elapsed-time" id="elapsedTime">00:00</div>
+      <div class="speed-control">
+        <span class="speed-label">SPEED</span>
+        <select class="speed-select" id="simSpeed">
+          <option value="5">0.5×</option>
+          <option value="10" selected>1×</option>
+          <option value="25">2.5×</option>
+          <option value="50">5×</option>
+          <option value="200">20×</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let crewList = [];
+let spmlItems = [];
+let simRunning = false;
+let simPaused = false;
+let simTimer = null;
+let simState = null;
+let crewColors = ['#5b8dd9','#c8a96e','#4ec994','#e05c5c','#a78bfa','#f59e0b'];
+let crewAvatarColors = ['#1a3a5c','#3d2e10','#143d2b','#3d1515','#2d2040','#3d2e00'];
+let direction = 'fwd-aft';
+let logLines = [];
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+function init() {
+  addCrew('In-Charge (IFS)', 'fwd', 5);
+  addCrew('LSS A', 'fwd', 4);
+  addCrew('LSS B', 'aft', 3);
+  addCrew('FSS C', 'aft', 4);
+  addSpml(12, 'VGML');
+  addSpml(5, 'KSML');
+  addSpml(3, 'MOML');
+  buildCabin();
+}
+
+// ─── CREW ─────────────────────────────────────────────────────────────────────
+let crewIdCounter = 0;
+function addCrew(name='New Crew', zone='fwd', comp=3) {
+  const id = crewIdCounter++;
+  crewList.push({ id, name, zone, comp, color: crewColors[id % crewColors.length] });
+  renderCrewCards();
+}
+
+function removeCrew(id) {
+  crewList = crewList.filter(c => c.id !== id);
+  renderCrewCards();
+}
+
+function renderCrewCards() {
+  const container = document.getElementById('crewCards');
+  container.innerHTML = '';
+  crewList.forEach((crew, i) => {
+    const compLabels = ['','Very Slow','Slow','Average','Fast','Expert'];
+    const compPct = (crew.comp / 5) * 100;
+    container.innerHTML += `
+      <div class="crew-card">
+        <div class="crew-card-header">
+          <div class="crew-avatar" style="background:${crewAvatarColors[i%6]};color:${crew.color}">
+            ${crew.name.substring(0,2).toUpperCase()}
+          </div>
+          <input class="crew-name-input" value="${crew.name}"
+            onchange="updateCrew(${crew.id},'name',this.value)">
+          <button class="btn-remove" onclick="removeCrew(${crew.id})">×</button>
+        </div>
+        <div class="field-row">
+          <label class="field-label">Zone</label>
+          <select onchange="updateCrew(${crew.id},'zone',this.value)">
+            <option value="fwd" ${crew.zone==='fwd'?'selected':''}>Forward (Rows 1–14)</option>
+            <option value="mid" ${crew.zone==='mid'?'selected':''}>Mid (Rows 15–27)</option>
+            <option value="aft" ${crew.zone==='aft'?'selected':''}>Aft (Rows 28–40)</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label class="field-label">Competency</label>
+          <input type="range" min="1" max="5" value="${crew.comp}"
+            oninput="updateCrew(${crew.id},'comp',parseInt(this.value)); this.nextElementSibling.querySelector('.comp-fill').style.width='${compPct}%'; this.nextElementSibling.querySelector('.comp-val').textContent='${compLabels[crew.comp]}'">
+          <div class="competency-display">
+            <span class="comp-val">${compLabels[crew.comp]}</span>
+            <span>${crew.comp}/5</span>
+          </div>
+          <div class="comp-bar"><div class="comp-fill" style="width:${compPct}%"></div></div>
+        </div>
+      </div>`;
+  });
+}
+
+function updateCrew(id, key, val) {
+  const crew = crewList.find(c => c.id === id);
+  if (crew) { crew[key] = val; if(key==='comp') renderCrewCards(); }
+}
+
+// ─── SPML ─────────────────────────────────────────────────────────────────────
+let spmlIdCounter = 0;
+function addSpml(row=1, type='VGML') {
+  spmlItems.push({ id: spmlIdCounter++, row, type });
+  renderSpml();
+}
+
+function removeSpml(id) {
+  spmlItems = spmlItems.filter(s => s.id !== id);
+  renderSpml();
+}
+
+function renderSpml() {
+  const container = document.getElementById('spmlList');
+  const types = ['VGML','KSML','MOML','HNML','CHML','DBML','LFML','GFML','NLML','SFML'];
+  container.innerHTML = '';
+  spmlItems.forEach(s => {
+    container.innerHTML += `
+      <div class="spml-row">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">Row</span>
+        <input type="number" value="${s.row}" min="1" max="60"
+          onchange="updateSpml(${s.id},'row',parseInt(this.value))">
+        <select onchange="updateSpml(${s.id},'type',this.value)">
+          ${types.map(t=>`<option ${t===s.type?'selected':''}>${t}</option>`).join('')}
+        </select>
+        <button class="btn-remove" onclick="removeSpml(${s.id})">×</button>
+      </div>`;
+  });
+}
+
+function updateSpml(id, key, val) {
+  const s = spmlItems.find(x => x.id === id);
+  if (s) s[key] = val;
+}
+
+// ─── CABIN ────────────────────────────────────────────────────────────────────
+function buildCabin() {
+  const grid = document.getElementById('cabinGrid');
+  const rows = parseInt(document.getElementById('totalRows').value);
+  const seatsN = parseInt(document.getElementById('seatsPerRow').value);
+  const paxPct = parseInt(document.getElementById('paxLoad').value) / 100;
+
+  // config layout
+  let left, mid = 0, right;
+  if (seatsN === 9) { left = 3; mid = 3; right = 3; }
+  else if (seatsN === 8) { left = 2; mid = 4; right = 2; }
+  else { left = 3; mid = 4; right = 3; }
+
+  let html = '';
+  for (let r = 1; r <= rows; r++) {
+    html += `<div class="row-group" id="row-${r}">`;
+    html += `<div class="row-num">${r}</div>`;
+    html += `<div class="seats-left">`;
+    for (let s = 0; s < left; s++) {
+      const occ = Math.random() < paxPct;
+      const spml = spmlItems.find(x => x.row === r);
+      html += `<div class="seat ${spml && occ ? 'spml':''} ${occ?'occupied':''}" 
+        id="seat-${r}-L${s}" data-row="${r}" data-occ="${occ?1:0}"
+        title="${spml && occ ? spml.type : (occ?'Pax':'Empty')}"></div>`;
+    }
+    html += `</div>`;
+    if (mid > 0) {
+      html += `<div class="aisle-gap"></div><div class="seats-left">`;
+      for (let s = 0; s < mid; s++) {
+        const occ = Math.random() < paxPct;
+        html += `<div class="seat ${occ?'occupied':''}" id="seat-${r}-M${s}" data-row="${r}" data-occ="${occ?1:0}"></div>`;
+      }
+      html += `</div>`;
+    }
+    html += `<div class="aisle-gap"></div><div class="seats-right">`;
+    for (let s = 0; s < right; s++) {
+      const occ = Math.random() < paxPct;
+      html += `<div class="seat ${occ?'occupied':''}" id="seat-${r}-R${s}" data-row="${r}" data-occ="${occ?1:0}"></div>`;
+    }
+    html += `</div></div>`;
+  }
+  grid.innerHTML = html;
+}
+
+// refresh cabin when params change
+['totalRows','seatsPerRow','paxLoad'].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', buildCabin);
+});
+
+// ─── DIRECTION ────────────────────────────────────────────────────────────────
+function setDirection(d) {
+  direction = d;
+  document.getElementById('dirFwd').classList.toggle('active', d === 'fwd-aft');
+  document.getElementById('dirAft').classList.toggle('active', d === 'aft-fwd');
+  document.getElementById('dirBoth').classList.toggle('active', d === 'both');
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['cabin','timeline','stats'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(t => {
+    t.classList.toggle('active', t.id === `tab-${name}`);
+  });
+}
+
+// ─── SIMULATION ───────────────────────────────────────────────────────────────
+function resetSimulation() {
+  if (simTimer) clearInterval(simTimer);
+  simRunning = false;
+  simState = null;
+  document.getElementById('statusDot').className = 'status-dot';
+  document.getElementById('statusText').textContent = 'READY';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressLabel').textContent = 'Configure and press RUN';
+  document.getElementById('elapsedTime').textContent = '00:00';
+  document.getElementById('logArea').innerHTML = '';
+  document.getElementById('timelineContent').innerHTML = '';
+  resetStatCards();
+  buildCabin();
+  logLines = [];
+}
+
+function resetStatCards() {
+  ['stat-pax','stat-duration','stat-avg','stat-spml','stat-eff','stat-bottleneck'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+}
+
+function log(msg, cls='') {
+  logLines.push({ msg, cls });
+  const area = document.getElementById('logArea');
+  area.innerHTML += `<div class="log-line ${cls}">${msg}</div>`;
+  area.scrollTop = area.scrollHeight;
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function runSimulation() {
+  if (simRunning) return;
+  resetSimulation();
+  
+  const totalRows = parseInt(document.getElementById('totalRows').value);
+  const paxLoad = parseInt(document.getElementById('paxLoad').value) / 100;
+  const timeNormal = parseInt(document.getElementById('timeNormal').value);
+  const timeSpml = parseInt(document.getElementById('timeSpml').value);
+  const timeMove = parseInt(document.getElementById('timeMove').value);
+  const timeTrolley = parseInt(document.getElementById('timeTrolley').value);
+  const timeDrink = parseInt(document.getElementById('timeDrink').value);
+  const timeCollect = parseInt(document.getElementById('timeCollect').value);
+  const mealChoices = parseInt(document.getElementById('mealChoices').value);
+  const speed = parseInt(document.getElementById('simSpeed').value);
+
+  if (crewList.length === 0) {
+    alert('Add at least one crew member!');
+    return;
+  }
+
+  buildCabin();
+
+  // Competency multiplier: expert=0.7x, fast=0.85x, avg=1.0x, slow=1.2x, very slow=1.5x
+  const compMult = [0, 1.5, 1.2, 1.0, 0.85, 0.7];
+
+  // Assign rows to crew zones
+  const zoneRanges = {
+    fwd: [1, Math.floor(totalRows * 0.35)],
+    mid: [Math.floor(totalRows * 0.35) + 1, Math.floor(totalRows * 0.65)],
+    aft: [Math.floor(totalRows * 0.65) + 1, totalRows]
+  };
+
+  // Build crew simulation state
+  const crewStates = crewList.map(c => {
+    const zone = zoneRanges[c.zone] || zoneRanges.fwd;
+    const mult = compMult[c.comp] || 1.0;
+    // direction determines starting row
+    let currentRow = direction === 'aft-fwd' ? zone[1] : zone[0];
+    return {
+      ...c,
+      mult,
+      zoneStart: zone[0],
+      zoneEnd: zone[1],
+      currentRow,
+      direction: direction === 'aft-fwd' ? -1 : 1,
+      phase: 'setup', // setup → meals → drinks → collect → done
+      phaseTimer: timeTrolley * mult,
+      totalTime: 0,
+      rowsDone: 0,
+      segments: [], // for timeline
+      paxServed: 0,
+      spmlHandled: 0,
+      done: false
+    };
+  });
+
+  // If direction=both, half go fwd, half go aft
+  if (direction === 'both') {
+    crewStates.forEach((c, i) => {
+      c.direction = i % 2 === 0 ? 1 : -1;
+      c.currentRow = c.direction === 1 ? c.zoneStart : c.zoneEnd;
+    });
+  }
+
+  simRunning = true;
+  simState = { crewStates, totalRows, timeNormal, timeSpml, timeMove, timeTrolley, timeDrink, timeCollect, mealChoices, spmlItems, t: 0, done: false };
+
+  document.getElementById('statusDot').className = 'status-dot running';
+  document.getElementById('statusText').textContent = 'RUNNING';
+  document.getElementById('btnRun').disabled = true;
+
+  log(`[${formatTime(0)}] Simulation started — ${crewList.length} crew, ${totalRows} rows, ${direction}`, 'info');
+  log(`[${formatTime(0)}] Trolley setup phase begins...`, 'highlight');
+
+  // Build timeline structure
+  buildTimeline(crewStates);
+
+  // Step interval
+  const STEP_MS = 100; // real ms per sim step
+  const SIM_STEP = speed; // seconds per step
+
+  simTimer = setInterval(() => {
+    if (simState.done) {
+      clearInterval(simTimer);
+      simRunning = false;
+      finishSimulation();
+      return;
+    }
+
+    simState.t += SIM_STEP;
+    const t = simState.t;
+
+    let allDone = true;
+
+    crewStates.forEach(crew => {
+      if (crew.done) return;
+      allDone = false;
+
+      crew.phaseTimer -= SIM_STEP;
+      crew.totalTime += SIM_STEP;
+
+      if (crew.phaseTimer > 0) return;
+
+      if (crew.phase === 'setup') {
+        crew.phase = 'meals';
+        crew.phaseTimer = 0;
+        log(`[${formatTime(t)}] ${crew.name} — trolley ready, starting meal service from row ${crew.currentRow}`, 'highlight');
+        addTimelineSegment(crew.id, 'Setup', 0, t, '#2a2f40');
+        crew.segStart = t;
+      }
+      else if (crew.phase === 'meals') {
+        const rowHasSpml = spmlItems.find(s => s.row === crew.currentRow);
+        const paxInRow = getRowPaxCount(crew.currentRow);
+        
+        if (paxInRow > 0) {
+          const baseTime = (timeNormal + timeDrink * 0.5) * crew.mult * paxInRow;
+          const spmlExtra = rowHasSpml ? (timeSpml - timeNormal) * crew.mult : 0;
+          const extraChoice = (mealChoices - 1) * 3 * crew.mult * paxInRow;
+          
+          // Mark row as in-progress then served
+          markRow(crew.currentRow, 'in-progress');
+          setTimeout(() => markRow(crew.currentRow, 'served'), (baseTime + spmlExtra) * 1000 / SIM_STEP * STEP_MS / speed);
+
+          crew.paxServed += paxInRow;
+          if (rowHasSpml) {
+            crew.spmlHandled++;
+            log(`[${formatTime(t)}] ${crew.name} — SPML ${rowHasSpml.type} at row ${crew.currentRow}`, 'spml-log');
+          }
+
+          crew.phaseTimer = (baseTime + spmlExtra + extraChoice) + timeMove * crew.mult;
+        } else {
+          crew.phaseTimer = timeMove * crew.mult;
+        }
+
+        crew.rowsDone++;
+        const nextRow = crew.currentRow + crew.direction;
+
+        if (nextRow < crew.zoneStart || nextRow > crew.zoneEnd) {
+          // Move to collection phase
+          crew.phase = 'collect';
+          const segColor = crew.color;
+          addTimelineSegment(crew.id, 'Meal Service', crew.segStart, t, segColor);
+          crew.segStart = t;
+          crew.phaseTimer = (crew.zoneEnd - crew.zoneStart) * (timeCollect * 0.5) * crew.mult;
+          log(`[${formatTime(t)}] ${crew.name} — meal service complete, starting tray collection`, 'highlight');
+          crew.direction *= -1; // reverse for collection
+          crew.currentRow = crew.direction === 1 ? crew.zoneStart : crew.zoneEnd;
+        } else {
+          crew.currentRow = nextRow;
+        }
+      }
+      else if (crew.phase === 'collect') {
+        const nextRow = crew.currentRow + crew.direction;
+        if (nextRow < crew.zoneStart || nextRow > crew.zoneEnd) {
+          crew.phase = 'done';
+          crew.done = true;
+          addTimelineSegment(crew.id, 'Tray Collection', crew.segStart, t, '#2a4a35');
+          log(`[${formatTime(t)}] ${crew.name} — SERVICE COMPLETE ✓ (${formatTime(crew.totalTime)})`, 'done-log');
+        } else {
+          crew.currentRow = nextRow;
+          crew.phaseTimer = timeCollect * crew.mult;
+        }
+      }
+    });
+
+    // Update progress
+    const done = crewStates.filter(c => c.done).length;
+    const pct = (done / crewStates.length) * 100;
+    const rowsDone = crewStates.reduce((a, c) => a + c.rowsDone, 0);
+    const totalRowWork = crewStates.reduce((a, c) => a + (c.zoneEnd - c.zoneStart + 1), 0);
+    const rowPct = Math.min(100, (rowsDone / totalRowWork) * 100);
+    
+    document.getElementById('progressFill').style.width = rowPct + '%';
+    document.getElementById('progressLabel').textContent = `${rowsDone}/${totalRowWork} rows served`;
+    document.getElementById('elapsedTime').textContent = formatTime(t);
+    updateTimelineCursor(t);
+
+    if (allDone) simState.done = true;
+
+  }, STEP_MS);
+}
+
+function getRowPaxCount(row) {
+  const seats = document.querySelectorAll(`[data-row="${row}"][data-occ="1"]`);
+  return seats.length;
+}
+
+function markRow(row, cls) {
+  document.querySelectorAll(`[data-row="${row}"].occupied`).forEach(s => {
+    s.classList.remove('in-progress','served');
+    if (cls) s.classList.add(cls);
+  });
+}
+
+// ─── TIMELINE ─────────────────────────────────────────────────────────────────
+let timelineMaxTime = 0;
+function buildTimeline(crewStates) {
+  const container = document.getElementById('timelineContent');
+  timelineMaxTime = 0; // will update dynamically
+
+  let html = `<div id="tl-outer" style="position:relative;min-width:600px">`;
+  html += `<div class="timeline-header" id="tl-header"></div>`;
+  crewStates.forEach(c => {
+    html += `<div class="timeline-row">
+      <div class="timeline-label" style="color:${c.color}">${c.name}</div>
+      <div class="timeline-track" id="tl-track-${c.id}">
+        <div class="timeline-cursor" id="tl-cursor-${c.id}" style="opacity:0"></div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function addTimelineSegment(crewId, label, startT, endT, color) {
+  // Update max time for scaling
+  timelineMaxTime = Math.max(timelineMaxTime, endT);
+  rerenderTimeline();
+}
+
+function rerenderTimeline() {
+  crewList.forEach(crew => {
+    const track = document.getElementById(`tl-track-${crew.id}`);
+    if (!track) return;
+    const state = simState?.crewStates?.find(c => c.id === crew.id);
+    if (!state || !state.segments) return;
+    // rendered via segments array
+  });
+}
+
+// We'll use a simpler direct DOM approach
+const segmentData = {}; // crewId -> [{label, start, end, color}]
+
+function addTimelineSegment(crewId, label, startT, endT, color) {
+  if (!segmentData[crewId]) segmentData[crewId] = [];
+  segmentData[crewId].push({ label, start: startT, end: endT, color });
+  timelineMaxTime = Math.max(timelineMaxTime, endT + 300);
+  renderTimelineSegments();
+}
+
+function renderTimelineSegments() {
+  const maxT = Math.max(timelineMaxTime, 600);
+  
+  crewList.forEach(crew => {
+    const track = document.getElementById(`tl-track-${crew.id}`);
+    if (!track) return;
+    const segs = segmentData[crew.id] || [];
+    // Keep cursor, remove old segments
+    const cursor = track.querySelector('.timeline-cursor');
+    track.innerHTML = '';
+    if (cursor) track.appendChild(cursor);
+
+    segs.forEach(seg => {
+      const leftPct = (seg.start / maxT) * 100;
+      const widthPct = ((seg.end - seg.start) / maxT) * 100;
+      const el = document.createElement('div');
+      el.className = 'timeline-segment';
+      el.style.left = leftPct + '%';
+      el.style.width = Math.max(widthPct, 0.5) + '%';
+      el.style.background = seg.color;
+      el.style.opacity = '0.85';
+      el.style.color = '#fff';
+      el.textContent = widthPct > 8 ? seg.label : '';
+      el.title = `${seg.label}: ${formatTime(seg.start)} → ${formatTime(seg.end)}`;
+      track.appendChild(el);
+    });
+
+    // Update header ticks
+    updateTimelineTicks(maxT);
+  });
+}
+
+function updateTimelineTicks(maxT) {
+  const header = document.getElementById('tl-header');
+  if (!header) return;
+  const numTicks = 8;
+  header.innerHTML = '';
+  for (let i = 0; i <= numTicks; i++) {
+    const t = (maxT / numTicks) * i;
+    const el = document.createElement('div');
+    el.className = 'time-tick';
+    el.textContent = formatTime(t);
+    el.style.flex = i < numTicks ? '1' : '0';
+    header.appendChild(el);
+  }
+}
+
+function updateTimelineCursor(t) {
+  const maxT = Math.max(timelineMaxTime, 600);
+  const pct = Math.min(100, (t / maxT) * 100);
+  crewList.forEach(crew => {
+    const cursor = document.querySelector(`#tl-track-${crew.id} .timeline-cursor`);
+    if (cursor) {
+      cursor.style.left = pct + '%';
+      cursor.style.opacity = '1';
+    }
+  });
+}
+
+// ─── FINISH ───────────────────────────────────────────────────────────────────
+function finishSimulation() {
+  const states = simState.crewStates;
+  const totalPax = states.reduce((a, c) => a + c.paxServed, 0);
+  const totalSpml = states.reduce((a, c) => a + c.spmlHandled, 0);
+  const maxTime = Math.max(...states.map(c => c.totalTime));
+  const minTime = Math.min(...states.map(c => c.totalTime));
+  const avgPerPax = totalPax > 0 ? Math.round((states.reduce((a,c) => a + c.totalTime, 0) / states.length) / Math.max(totalPax/states.length, 1)) : 0;
+  const baseline = simState.totalRows * (simState.timeNormal + simState.timeDrink * 0.5) / crewList.length;
+  const efficiency = Math.min(100, Math.round((baseline / (maxTime - simState.timeTrolley)) * 100));
+  const bottleneck = states.find(c => c.totalTime === maxTime);
+
+  document.getElementById('stat-pax').textContent = totalPax;
+  document.getElementById('stat-duration').innerHTML = `${Math.round(maxTime/60)}<span class="stat-unit">min</span>`;
+  document.getElementById('stat-spml').textContent = totalSpml;
+  document.getElementById('stat-avg').innerHTML = `${avgPerPax}<span class="stat-unit">sec</span>`;
+  document.getElementById('stat-eff').innerHTML = `${efficiency}<span class="stat-unit">%</span>`;
+  document.getElementById('stat-bottleneck').textContent = bottleneck ? bottleneck.name : '—';
+
+  document.getElementById('statusDot').className = 'status-dot done';
+  document.getElementById('statusText').textContent = 'COMPLETE';
+  document.getElementById('btnRun').disabled = false;
+  document.getElementById('progressFill').style.width = '100%';
+  document.getElementById('progressLabel').textContent = `Service complete in ${formatTime(maxTime)}`;
+
+  log(`[${formatTime(maxTime)}] ── SERVICE COMPLETE ──`, 'done-log');
+  log(`Total pax served: ${totalPax} | SPML: ${totalSpml} | Duration: ${formatTime(maxTime)}`, 'info');
+  log(`Efficiency vs baseline: ${efficiency}% | Bottleneck: ${bottleneck?.name}`, efficiency < 70 ? 'spml-log' : 'done-log');
+
+  // Add final segment for any in-progress crew
+  states.forEach(c => {
+    if (!segmentData[c.id] || segmentData[c.id].length === 0) {
+      addTimelineSegment(c.id, 'Service', 0, c.totalTime, c.color);
+    }
+  });
+
+  switchTab('stats');
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
