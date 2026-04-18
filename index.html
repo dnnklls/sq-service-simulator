@@ -759,7 +759,7 @@
       <div class="config-grid">
         <div class="config-item">
           <label>Total Rows</label>
-          <input type="number" id="totalRows" value="40" min="10" max="60">
+          <input type="number" id="totalRows" value="30" min="10" max="60">
         </div>
         <div class="config-item">
           <label>Seats/Row</label>
@@ -939,15 +939,25 @@ let crewAvatarColors = ['#1a3a5c','#3d2e10','#143d2b','#3d1515','#2d2040','#3d2e
 let direction = 'fwd-aft';
 let logLines = [];
 
+// ─── A350 MH CABIN CONSTANTS ──────────────────────────────────────────────────
+// Economy class on SQ A350-900 MH: rows 41–70 (30 rows, 3-3-3)
+// Zone breaks match actual cabin: galley/toilet block between rows 54 and 55
+const EY_START_ROW = 41;
+const EY_ZONES = {
+  fwd: { start: 41, end: 47, label: 'Forward (Rows 41–47)' },
+  mid: { start: 48, end: 54, label: 'Mid (Rows 48–54)' },
+  aft: { start: 55, end: 70, label: 'Aft (Rows 55–70)' }
+};
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
   addCrew('In-Charge (IFS)', 'fwd', 5);
   addCrew('LSS A', 'fwd', 4);
   addCrew('LSS B', 'aft', 3);
   addCrew('FSS C', 'aft', 4);
-  addSpml(12, 'VGML');
-  addSpml(5, 'KSML');
-  addSpml(3, 'MOML');
+  addSpml(43, 'VGML');
+  addSpml(51, 'KSML');
+  addSpml(62, 'MOML');
   buildCabin();
 }
 
@@ -983,9 +993,9 @@ function renderCrewCards() {
         <div class="field-row">
           <label class="field-label">Zone</label>
           <select onchange="updateCrew(${crew.id},'zone',this.value)">
-            <option value="fwd" ${crew.zone==='fwd'?'selected':''}>Forward (Rows 1–14)</option>
-            <option value="mid" ${crew.zone==='mid'?'selected':''}>Mid (Rows 15–27)</option>
-            <option value="aft" ${crew.zone==='aft'?'selected':''}>Aft (Rows 28–40)</option>
+            <option value="fwd" ${crew.zone==='fwd'?'selected':''}>${EY_ZONES.fwd.label}</option>
+            <option value="mid" ${crew.zone==='mid'?'selected':''}>${EY_ZONES.mid.label}</option>
+            <option value="aft" ${crew.zone==='aft'?'selected':''}>${EY_ZONES.aft.label}</option>
           </select>
         </div>
         <div class="field-row">
@@ -1027,7 +1037,7 @@ function renderSpml() {
     container.innerHTML += `
       <div class="spml-row">
         <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">Row</span>
-        <input type="number" value="${s.row}" min="1" max="60"
+        <input type="number" value="${s.row}" min="${EY_START_ROW}" max="${EY_ZONES.aft.end}"
           onchange="updateSpml(${s.id},'row',parseInt(this.value))">
         <select onchange="updateSpml(${s.id},'type',this.value)">
           ${types.map(t=>`<option ${t===s.type?'selected':''}>${t}</option>`).join('')}
@@ -1055,15 +1065,26 @@ function buildCabin() {
   else if (seatsN === 8) { left = 2; mid = 4; right = 2; }
   else { left = 3; mid = 4; right = 3; }
 
+  const startRow = EY_START_ROW;
+  const endRow = startRow + rows - 1;
+
   let html = '';
-  for (let r = 1; r <= rows; r++) {
+  for (let r = startRow; r <= endRow; r++) {
+    // Galley/toilet divider between rows 54 and 55
+    if (r === 55) {
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;margin:2px 0;background:rgba(42,47,64,0.6);border-top:1px dashed var(--border);border-bottom:1px dashed var(--border)">
+        <span style="font-family:var(--mono);font-size:8px;color:var(--text-dim);letter-spacing:1px;white-space:nowrap">◈ GALLEY / LAVS</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-family:var(--mono);font-size:8px;color:var(--accent4);letter-spacing:1px">AFT ZONE →</span>
+      </div>`;
+    }
     html += `<div class="row-group" id="row-${r}">`;
     html += `<div class="row-num">${r}</div>`;
     html += `<div class="seats-left">`;
     for (let s = 0; s < left; s++) {
       const occ = Math.random() < paxPct;
       const spml = spmlItems.find(x => x.row === r);
-      html += `<div class="seat ${spml && occ ? 'spml':''} ${occ?'occupied':''}" 
+      html += `<div class="seat ${spml && occ ? 'spml':''} ${occ?'occupied':''}"
         id="seat-${r}-L${s}" data-row="${r}" data-occ="${occ?1:0}"
         title="${spml && occ ? spml.type : (occ?'Pax':'Empty')}"></div>`;
     }
@@ -1171,11 +1192,11 @@ function runSimulation() {
   // Competency multiplier: expert=0.7x, fast=0.85x, avg=1.0x, slow=1.2x, very slow=1.5x
   const compMult = [0, 1.5, 1.2, 1.0, 0.85, 0.7];
 
-  // Assign rows to crew zones
+  // Assign rows to crew zones — based on actual A350 MH Economy cabin layout
   const zoneRanges = {
-    fwd: [1, Math.floor(totalRows * 0.35)],
-    mid: [Math.floor(totalRows * 0.35) + 1, Math.floor(totalRows * 0.65)],
-    aft: [Math.floor(totalRows * 0.65) + 1, totalRows]
+    fwd: [EY_ZONES.fwd.start, EY_ZONES.fwd.end],
+    mid: [EY_ZONES.mid.start, EY_ZONES.mid.end],
+    aft: [EY_ZONES.aft.start, EY_ZONES.aft.end]
   };
 
   // Build crew simulation state
