@@ -756,19 +756,23 @@
     <!-- Flight Config -->
     <div class="sidebar-section">
       <h2>Flight Config</h2>
+      <!-- Aircraft type display — locked to actual seatmap data -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px 12px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--sq-gold);letter-spacing:2px">AIRCRAFT</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);letter-spacing:1px">A350-900</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text);letter-spacing:1px;margin-bottom:2px">MEDIUM HAUL · EY CABIN</div>
+        <div style="display:flex;gap:12px;margin-top:6px">
+          <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">ROWS <span style="color:var(--text)">41–70</span></span>
+          <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">LAYOUT <span style="color:var(--text)">3-3-3</span></span>
+          <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">SEATS <span style="color:var(--text)">270</span></span>
+        </div>
+        <!-- Hidden inputs keep the rest of the JS working unchanged -->
+        <input type="hidden" id="totalRows" value="30">
+        <input type="hidden" id="seatsPerRow" value="9">
+      </div>
       <div class="config-grid">
-        <div class="config-item">
-          <label>Total Rows</label>
-          <input type="number" id="totalRows" value="30" min="10" max="60">
-        </div>
-        <div class="config-item">
-          <label>Seats/Row</label>
-          <select id="seatsPerRow">
-            <option value="9" selected>9 (3-3-3)</option>
-            <option value="8">8 (2-4-2)</option>
-            <option value="10">10 (3-4-3)</option>
-          </select>
-        </div>
         <div class="config-item">
           <label>Pax Load %</label>
           <input type="number" id="paxLoad" value="85" min="10" max="100">
@@ -1142,10 +1146,8 @@ function buildCabin() {
   grid.innerHTML = html;
 }
 
-// refresh cabin when params change
-['totalRows','seatsPerRow','paxLoad'].forEach(id => {
-  document.getElementById(id)?.addEventListener('change', buildCabin);
-});
+// refresh cabin when pax load changes
+document.getElementById('paxLoad')?.addEventListener('change', buildCabin);
 
 // ─── DIRECTION ────────────────────────────────────────────────────────────────
 function setDirection(d) {
