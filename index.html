@@ -108,6 +108,126 @@
     color: var(--sq-gold);
     margin-bottom: 14px;
     text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .sidebar-section h2:hover { opacity: 0.85; }
+
+  .collapse-arrow {
+    font-size: 11px;
+    color: var(--text-dim);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .sidebar-section.collapsed .collapse-arrow {
+    transform: rotate(-90deg);
+  }
+
+  .sidebar-section.collapsed > *:not(h2) {
+    display: none !important;
+  }
+
+  .sidebar-section.collapsed h2 {
+    margin-bottom: 0;
+  }
+
+  /* Mobile settings toggle */
+  .mobile-settings-btn {
+    display: none;
+    margin-left: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-mid);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 7px 12px;
+    cursor: pointer;
+    border-radius: 3px;
+    white-space: nowrap;
+    transition: all .2s;
+  }
+
+  .mobile-settings-btn.open {
+    background: var(--sq-gold);
+    color: #000;
+    border-color: var(--sq-gold);
+  }
+
+  /* ── RESPONSIVE / MOBILE ─────────────────────────────────────── */
+  @media (max-width: 768px) {
+    header {
+      padding: 12px 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    header h1 {
+      font-size: 10px;
+    }
+
+    .sim-status { margin-left: 0; }
+
+    .mobile-settings-btn { display: block; }
+
+    .main-layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+      min-height: 0;
+    }
+
+    .sidebar {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease;
+    }
+
+    .sidebar.mobile-open {
+      max-height: 75vh;
+      overflow-y: auto;
+    }
+
+    .content-area {
+      min-height: 0;
+      height: calc(100vh - 57px);
+      overflow: hidden;
+    }
+
+    .tab-content.active {
+      overflow: auto;
+      max-height: calc(100vh - 120px);
+    }
+
+    .cabin-wrapper { padding: 12px 8px; }
+
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+      padding: 12px;
+      gap: 8px;
+    }
+
+    .log-area { margin: 0 12px 12px; }
+
+    .timeline-wrapper { padding: 12px 8px; }
+
+    .sim-controls {
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 12px;
+    }
+
+    .progress-bar-wrapper { order: 3; width: 100%; }
+
+    .elapsed-time { font-size: 14px; }
+
+    .speed-control { margin-left: 0; }
   }
 
   .content-area {
@@ -746,6 +866,7 @@
     <div class="status-dot" id="statusDot"></div>
     <span id="statusText">READY</span>
   </div>
+  <button class="mobile-settings-btn" id="mobileSettingsBtn" onclick="toggleMobileSidebar()">⚙ SETTINGS</button>
 </header>
 
 <div class="main-layout">
@@ -1660,8 +1781,40 @@ function finishSimulation() {
   switchTab('stats');
 }
 
+// ─── COLLAPSIBLE SECTIONS ─────────────────────────────────────────────────────
+function initCollapsible() {
+  document.querySelectorAll('.sidebar-section').forEach((section, i) => {
+    const h2 = section.querySelector('h2');
+    if (!h2) return;
+
+    // Add collapse arrow
+    const arrow = document.createElement('span');
+    arrow.className = 'collapse-arrow';
+    arrow.textContent = '▾';
+    h2.appendChild(arrow);
+
+    // On mobile: collapse all sections except the first by default
+    if (window.innerWidth <= 768 && i > 0) {
+      section.classList.add('collapsed');
+    }
+
+    h2.addEventListener('click', () => {
+      section.classList.toggle('collapsed');
+    });
+  });
+}
+
+function toggleMobileSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const btn = document.getElementById('mobileSettingsBtn');
+  const isOpen = sidebar.classList.toggle('mobile-open');
+  btn.textContent = isOpen ? '✕ CLOSE' : '⚙ SETTINGS';
+  btn.classList.toggle('open', isOpen);
+}
+
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 init();
+initCollapsible();
 </script>
 </body>
 </html>
