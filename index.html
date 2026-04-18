@@ -800,6 +800,21 @@
       <h2>Special Meals (SPML)</h2>
       <div class="spml-list" id="spmlList"></div>
       <button class="btn-add-spml" onclick="addSpml()">+ ADD SPML</button>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--text-mid);letter-spacing:1px">
+          <input type="checkbox" id="spmlPreDelivery" checked style="accent-color:var(--sq-gold)">
+          SPML HAND-DELIVERY FIRST
+        </label>
+        <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);margin:4px 0 8px;line-height:1.5">
+          All crew deliver SPMLs by hand before cart service (per SQ Unit 7)
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:10px;color:var(--text-dim);font-family:var(--mono);white-space:nowrap">Pre-delivery</label>
+          <input type="number" id="timeSpmlPreDelivery" value="480" min="60" max="900"
+            style="width:70px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;font-family:var(--mono);font-size:11px;border-radius:3px;outline:none">
+          <label style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">sec</label>
+        </div>
+      </div>
     </div>
 
     <!-- Timing params -->
@@ -951,10 +966,13 @@ const EY_ZONES = {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
-  addCrew('In-Charge (IFS)', 'fwd', 5);
-  addCrew('LSS A', 'fwd', 4);
-  addCrew('LSS B', 'aft', 3);
-  addCrew('FSS C', 'aft', 4);
+  // Default crew based on actual SQ A350 MH Unit 7 service procedure
+  addCrew('CS1',  'fwd', 4, 'galley', null);  // galley support / ad hoc
+  addCrew('LS6',  'fwd', 4, 'cart',   45);    // cart from row 45 FWD→AFT
+  addCrew('C2',   'fwd', 3, 'galley', null);  // loads carts / replenishment
+  addCrew('C3',   'fwd', 3, 'cart',   41);    // cart from row 41 FWD→AFT
+  addCrew('C4',   'fwd', 3, 'cart',   41);    // cart from row 41 FWD→AFT
+  addCrew('C5',   'mid', 3, 'cart',   45);    // cart from row 45 FWD→AFT
   addSpml(43, 'VGML');
   addSpml(51, 'KSML');
   addSpml(62, 'MOML');
@@ -963,9 +981,9 @@ function init() {
 
 // ─── CREW ─────────────────────────────────────────────────────────────────────
 let crewIdCounter = 0;
-function addCrew(name='New Crew', zone='fwd', comp=3) {
+function addCrew(name='New Crew', zone='fwd', comp=3, role='cart', startRow=null) {
   const id = crewIdCounter++;
-  crewList.push({ id, name, zone, comp, color: crewColors[id % crewColors.length] });
+  crewList.push({ id, name, zone, comp, role, startRow, color: crewColors[id % crewColors.length] });
   renderCrewCards();
 }
 
@@ -990,14 +1008,31 @@ function renderCrewCards() {
             onchange="updateCrew(${crew.id},'name',this.value)">
           <button class="btn-remove" onclick="removeCrew(${crew.id})">×</button>
         </div>
-        <div class="field-row">
-          <label class="field-label">Zone</label>
-          <select onchange="updateCrew(${crew.id},'zone',this.value)">
-            <option value="fwd" ${crew.zone==='fwd'?'selected':''}>${EY_ZONES.fwd.label}</option>
-            <option value="mid" ${crew.zone==='mid'?'selected':''}>${EY_ZONES.mid.label}</option>
-            <option value="aft" ${crew.zone==='aft'?'selected':''}>${EY_ZONES.aft.label}</option>
-          </select>
+        <div class="field-row" style="display:flex;gap:6px">
+          <div style="flex:1">
+            <label class="field-label">Role</label>
+            <select onchange="updateCrew(${crew.id},'role',this.value);renderCrewCards()">
+              <option value="cart"   ${crew.role==='cart'  ?'selected':''}>Cart Service</option>
+              <option value="galley" ${crew.role==='galley'?'selected':''}>Galley Support</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label class="field-label">Zone</label>
+            <select onchange="updateCrew(${crew.id},'zone',this.value)">
+              <option value="fwd" ${crew.zone==='fwd'?'selected':''}>${EY_ZONES.fwd.label}</option>
+              <option value="mid" ${crew.zone==='mid'?'selected':''}>${EY_ZONES.mid.label}</option>
+              <option value="aft" ${crew.zone==='aft'?'selected':''}>${EY_ZONES.aft.label}</option>
+            </select>
+          </div>
         </div>
+        ${crew.role === 'cart' ? `
+        <div class="field-row">
+          <label class="field-label">Start Row <span style="color:var(--text-dim);font-size:9px">(overrides zone start)</span></label>
+          <input type="number" value="${crew.startRow || ''}" min="${EY_START_ROW}" max="${EY_ZONES.aft.end}"
+            placeholder="default: zone start"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;font-family:var(--mono);font-size:12px;border-radius:4px;outline:none"
+            onchange="updateCrew(${crew.id},'startRow',this.value?parseInt(this.value):null)">
+        </div>` : `<div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);padding:4px 0 2px;letter-spacing:1px">SPML DELIVERY + CART LOADING + REPLENISHMENT</div>`}
         <div class="field-row">
           <label class="field-label">Competency</label>
           <input type="range" min="1" max="5" value="${crew.comp}"
@@ -1182,29 +1217,36 @@ function runSimulation() {
   const mealChoices = parseInt(document.getElementById('mealChoices').value);
   const speed = parseInt(document.getElementById('simSpeed').value);
 
-  if (crewList.length === 0) {
-    alert('Add at least one crew member!');
+  const cartCrew = crewList.filter(c => c.role !== 'galley');
+  if (cartCrew.length === 0) {
+    alert('Add at least one Cart Service crew member!');
     return;
   }
+
+  const spmlPreDelivery = document.getElementById('spmlPreDelivery')?.checked;
+  const timeSpmlPreDelivery = parseInt(document.getElementById('timeSpmlPreDelivery')?.value || '480');
 
   buildCabin();
 
   // Competency multiplier: expert=0.7x, fast=0.85x, avg=1.0x, slow=1.2x, very slow=1.5x
   const compMult = [0, 1.5, 1.2, 1.0, 0.85, 0.7];
 
-  // Assign rows to crew zones — based on actual A350 MH Economy cabin layout
+  // Zone row ranges — actual A350 MH Economy cabin layout
   const zoneRanges = {
     fwd: [EY_ZONES.fwd.start, EY_ZONES.fwd.end],
     mid: [EY_ZONES.mid.start, EY_ZONES.mid.end],
     aft: [EY_ZONES.aft.start, EY_ZONES.aft.end]
   };
 
-  // Build crew simulation state
-  const crewStates = crewList.map(c => {
+  // Build crew simulation state — cart service crew only
+  const crewStates = cartCrew.map(c => {
     const zone = zoneRanges[c.zone] || zoneRanges.fwd;
     const mult = compMult[c.comp] || 1.0;
-    // direction determines starting row
-    let currentRow = direction === 'aft-fwd' ? zone[1] : zone[0];
+    // Use custom startRow if set, otherwise use zone boundary based on direction
+    const defaultStart = direction === 'aft-fwd' ? zone[1] : zone[0];
+    let currentRow = (c.startRow != null) ? c.startRow : defaultStart;
+    const firstPhase = spmlPreDelivery ? 'spml-delivery' : 'setup';
+    const firstTimer = spmlPreDelivery ? timeSpmlPreDelivery * mult : timeTrolley * mult;
     return {
       ...c,
       mult,
@@ -1212,8 +1254,8 @@ function runSimulation() {
       zoneEnd: zone[1],
       currentRow,
       direction: direction === 'aft-fwd' ? -1 : 1,
-      phase: 'setup', // setup → meals → drinks → collect → done
-      phaseTimer: timeTrolley * mult,
+      phase: firstPhase,
+      phaseTimer: firstTimer,
       totalTime: 0,
       rowsDone: 0,
       segments: [], // for timeline
@@ -1238,8 +1280,10 @@ function runSimulation() {
   document.getElementById('statusText').textContent = 'RUNNING';
   document.getElementById('btnRun').disabled = true;
 
-  log(`[${formatTime(0)}] Simulation started — ${crewList.length} crew, ${totalRows} rows, ${direction}`, 'info');
-  log(`[${formatTime(0)}] Trolley setup phase begins...`, 'highlight');
+  const galleyCount = crewList.length - cartCrew.length;
+  log(`[${formatTime(0)}] Simulation started — ${cartCrew.length} cart crew${galleyCount ? ` + ${galleyCount} galley support` : ''}, ${totalRows} rows, ${direction}`, 'info');
+  if (spmlPreDelivery) log(`[${formatTime(0)}] SPML hand-delivery phase begins (${timeSpmlPreDelivery}s)...`, 'spml-log');
+  else log(`[${formatTime(0)}] Trolley setup phase begins...`, 'highlight');
 
   // Build timeline structure
   buildTimeline(crewStates);
@@ -1270,11 +1314,18 @@ function runSimulation() {
 
       if (crew.phaseTimer > 0) return;
 
-      if (crew.phase === 'setup') {
+      if (crew.phase === 'spml-delivery') {
+        crew.phase = 'setup';
+        crew.phaseTimer = timeTrolley * crew.mult;
+        log(`[${formatTime(t)}] ${crew.name} — SPML hand-delivery done, loading cart`, 'spml-log');
+        addTimelineSegment(crew.id, 'SPML Delivery', 0, t, '#5c2020');
+        crew.segStart = t;
+      }
+      else if (crew.phase === 'setup') {
         crew.phase = 'meals';
         crew.phaseTimer = 0;
         log(`[${formatTime(t)}] ${crew.name} — trolley ready, starting meal service from row ${crew.currentRow}`, 'highlight');
-        addTimelineSegment(crew.id, 'Setup', 0, t, '#2a2f40');
+        addTimelineSegment(crew.id, 'Setup', crew.segStart || 0, t, '#2a2f40');
         crew.segStart = t;
       }
       else if (crew.phase === 'meals') {
@@ -1474,7 +1525,7 @@ function finishSimulation() {
   const maxTime = Math.max(...states.map(c => c.totalTime));
   const minTime = Math.min(...states.map(c => c.totalTime));
   const avgPerPax = totalPax > 0 ? Math.round((states.reduce((a,c) => a + c.totalTime, 0) / states.length) / Math.max(totalPax/states.length, 1)) : 0;
-  const baseline = simState.totalRows * (simState.timeNormal + simState.timeDrink * 0.5) / crewList.length;
+  const baseline = simState.totalRows * (simState.timeNormal + simState.timeDrink * 0.5) / states.length;
   const efficiency = Math.min(100, Math.round((baseline / (maxTime - simState.timeTrolley)) * 100));
   const bottleneck = states.find(c => c.totalTime === maxTime);
 
