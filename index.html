@@ -35,7 +35,8 @@
   }
 
   header {
-    padding: 18px 32px;
+    padding: 12px 20px;
+    height: 48px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -84,17 +85,46 @@
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
   .main-layout {
-    display: grid;
-    grid-template-columns: 320px 1fr;
-    min-height: calc(100vh - 57px);
+    display: flex;
+    height: calc(100vh - 48px);
+    overflow: hidden;
   }
 
   .sidebar {
+    width: 260px;
+    flex-shrink: 0;
     border-right: 1px solid var(--border);
     background: var(--surface);
     overflow-y: auto;
-    padding: 0;
+    height: 100%;
+    z-index: 100;
+    transition: transform 0.3s ease;
   }
+
+  .content-area {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .tab-content.active {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 150;
+    backdrop-filter: blur(2px);
+  }
+  .sidebar-overlay.active { display: block; }
 
   .sidebar-section {
     border-bottom: 1px solid var(--border);
@@ -162,78 +192,37 @@
   /* ── RESPONSIVE / MOBILE ─────────────────────────────────────── */
   @media (max-width: 768px) {
     header {
-      padding: 12px 16px;
-      flex-wrap: wrap;
+      padding: 10px 14px;
       gap: 10px;
+      height: 44px;
     }
+    header h1 { font-size: 10px; letter-spacing: 0.5px; }
+    .sim-status { display: none; }
+    .mobile-settings-btn { display: flex; align-items: center; }
 
-    header h1 {
-      font-size: 10px;
-    }
-
-    .sim-status { margin-left: 0; }
-
-    .mobile-settings-btn { display: block; }
-
-    .main-layout {
-      grid-template-columns: 1fr;
-      grid-template-rows: auto 1fr;
-      min-height: 0;
-    }
+    .main-layout { height: calc(100vh - 44px); }
 
     .sidebar {
-      border-right: none;
-      border-bottom: 1px solid var(--border);
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.35s ease;
+      position: fixed;
+      top: 44px;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      transform: translateX(-100%);
+      z-index: 200;
+      border-right: 1px solid var(--border);
     }
+    .sidebar.mobile-open { transform: translateX(0); }
 
-    .sidebar.mobile-open {
-      max-height: 75vh;
-      overflow-y: auto;
-    }
+    .cabin-wrapper { padding: 10px 6px; }
+    .stats-grid { grid-template-columns: repeat(2,1fr); padding: 10px; gap: 8px; }
+    .log-area { margin: 0 10px 10px; }
+    .timeline-wrapper { padding: 10px 6px; }
 
-    .content-area {
-      min-height: 0;
-      height: calc(100vh - 57px);
-      overflow: hidden;
-    }
-
-    .tab-content.active {
-      overflow: auto;
-      max-height: calc(100vh - 120px);
-    }
-
-    .cabin-wrapper { padding: 12px 8px; }
-
-    .stats-grid {
-      grid-template-columns: repeat(2, 1fr);
-      padding: 12px;
-      gap: 8px;
-    }
-
-    .log-area { margin: 0 12px 12px; }
-
-    .timeline-wrapper { padding: 12px 8px; }
-
-    .sim-controls {
-      flex-wrap: wrap;
-      gap: 8px;
-      padding: 10px 12px;
-    }
-
+    .sim-controls { flex-wrap: wrap; gap: 8px; padding: 8px 10px; }
     .progress-bar-wrapper { order: 3; width: 100%; }
-
     .elapsed-time { font-size: 14px; }
-
     .speed-control { margin-left: 0; }
-  }
-
-  .content-area {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    overflow: hidden;
   }
 
   /* Tabs */
@@ -855,9 +844,27 @@
     border-top: 1px dashed var(--border);
     margin-top: 12px;
   }
+
+  .fleet-btn {
+    flex: 1;
+    padding: 7px 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all .2s;
+    text-transform: uppercase;
+  }
+  .fleet-btn:hover { border-color: var(--text-mid); color: var(--text); }
+  .fleet-btn.active { background: var(--sq-gold); border-color: var(--sq-gold); color: #000; font-weight: 700; }
 </style>
 </head>
 <body>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
 
 <header>
   <div class="sq-badge">SQ SIM</div>
@@ -877,22 +884,80 @@
     <!-- Flight Config -->
     <div class="sidebar-section">
       <h2>Flight Config</h2>
-      <!-- Aircraft type display — locked to actual seatmap data -->
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px 12px;margin-bottom:12px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span style="font-family:var(--mono);font-size:10px;color:var(--sq-gold);letter-spacing:2px">AIRCRAFT</span>
-          <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);letter-spacing:1px">A350-900</span>
+
+      <!-- Fleet selector -->
+      <div style="margin-bottom:12px">
+        <label class="field-label">Fleet</label>
+        <div style="display:flex;gap:6px">
+          <button id="fleetBtn-A350-MH" class="fleet-btn active" onclick="switchFleet('A350-MH')">A350 MH</button>
+          <button id="fleetBtn-custom"  class="fleet-btn"        onclick="switchFleet('custom')">Custom</button>
         </div>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--text);letter-spacing:1px;margin-bottom:2px">MEDIUM HAUL · EY CABIN</div>
-        <div style="display:flex;gap:12px;margin-top:6px">
-          <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">ROWS <span style="color:var(--text)">41–70</span></span>
-          <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">LAYOUT <span style="color:var(--text)">3-3-3</span></span>
-          <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">SEATS <span style="color:var(--text)">270</span></span>
-        </div>
-        <!-- Hidden inputs keep the rest of the JS working unchanged -->
-        <input type="hidden" id="totalRows" value="30">
-        <input type="hidden" id="seatsPerRow" value="9">
       </div>
+
+      <!-- Aircraft info display (locked fleet) -->
+      <div id="fleetDisplay" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px 12px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span id="fleetName"     style="font-family:var(--mono);font-size:11px;color:var(--text);letter-spacing:1px">A350-900 MH</span>
+          <span id="fleetSubtitle" style="font-family:var(--mono);font-size:9px;color:var(--text-dim)">Medium Haul · 2-Class</span>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:6px">
+          <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">ROWS <span id="fleetRowRange" style="color:var(--text)">41–70</span></span>
+          <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">LAYOUT <span id="fleetLayout" style="color:var(--text)">3-3-3</span></span>
+          <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">SEATS <span id="fleetSeats" style="color:var(--text)">270</span></span>
+        </div>
+        <!-- Zone schematic: FWD → MID → AFT -->
+        <div style="margin-top:10px">
+          <div style="font-family:var(--mono);font-size:8px;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px">CABIN ZONES</div>
+          <div style="display:flex;gap:2px;align-items:stretch;height:22px">
+            <div style="font-family:var(--mono);font-size:8px;color:var(--text-dim);display:flex;align-items:center;margin-right:2px">✈</div>
+            <div id="zoneBarFwd" style="background:rgba(91,141,217,0.25);border:1px solid #5b8dd9;border-radius:2px 0 0 2px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;color:#5b8dd9;flex:1">FWD</div>
+            <div id="zoneBarMid" style="background:rgba(200,169,110,0.2);border:1px solid var(--sq-gold);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;color:var(--sq-gold);flex:1">MID</div>
+            <div id="zoneBarAft" style="background:rgba(78,201,148,0.2);border:1px solid #4ec994;border-radius:0 2px 2px 0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;color:#4ec994;flex:2">AFT</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:7px;color:var(--text-dim);margin-top:2px;padding:0 2px">
+            <span>FRONT OF CABIN</span><span>BACK OF CABIN</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom fleet inputs (hidden by default) -->
+      <div id="customFleetConfig" style="display:none;margin-bottom:12px">
+        <div class="config-grid">
+          <div class="config-item">
+            <label>First EY Row</label>
+            <input type="number" id="customEyStart" value="1" min="1" max="99" onchange="applyCustomFleet()">
+          </div>
+          <div class="config-item">
+            <label>Last EY Row</label>
+            <input type="number" id="customEyEnd" value="30" min="1" max="99" onchange="applyCustomFleet()">
+          </div>
+          <div class="config-item">
+            <label>Seats / Row</label>
+            <select id="customSeatsPerRow" onchange="applyCustomFleet()">
+              <option value="9" selected>9 (3-3-3)</option>
+              <option value="8">8 (2-4-2)</option>
+              <option value="10">10 (3-4-3)</option>
+            </select>
+          </div>
+          <div class="config-item">
+            <label>FWD ends at</label>
+            <input type="number" id="customFwdEnd" value="10" min="1" max="99" onchange="applyCustomFleet()">
+          </div>
+          <div class="config-item">
+            <label>MID ends at</label>
+            <input type="number" id="customMidEnd" value="20" min="1" max="99" onchange="applyCustomFleet()">
+          </div>
+          <div class="config-item">
+            <label>Galley before</label>
+            <input type="number" id="customGalley" value="" min="1" max="99" placeholder="none" onchange="applyCustomFleet()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden inputs for JS backward compat -->
+      <input type="hidden" id="totalRows"   value="30">
+      <input type="hidden" id="seatsPerRow" value="9">
+
       <div class="config-grid">
         <div class="config-item">
           <label>Pax Load %</label>
@@ -1083,15 +1148,44 @@ let crewAvatarColors = ['#1a3a5c','#3d2e10','#143d2b','#3d1515','#2d2040','#3d2e
 let direction = 'fwd-aft';
 let logLines = [];
 
-// ─── A350 MH CABIN CONSTANTS ──────────────────────────────────────────────────
-// Economy class on SQ A350-900 MH: rows 41–70 (30 rows, 3-3-3)
-// Zone breaks match actual cabin: galley/toilet block between rows 54 and 55
-const EY_START_ROW = 41;
-const EY_ZONES = {
-  fwd: { start: 41, end: 47, label: 'Forward (Rows 41–47)' },
-  mid: { start: 48, end: 54, label: 'Mid (Rows 48–54)' },
-  aft: { start: 55, end: 70, label: 'Aft (Rows 55–70)' }
+// ─── FLEET CONFIGURATIONS ────────────────────────────────────────────────────
+const FLEET_CONFIGS = {
+  'A350-MH': {
+    name: 'A350-900 MH',
+    subtitle: 'Medium Haul · 2-Class',
+    eyStart: 41, eyEnd: 70,
+    seatsPerRow: 9, layoutLabel: '3-3-3',
+    totalSeats: 270,
+    zones: {
+      fwd: { start: 41, end: 47, label: 'FWD (Rows 41–47)' },
+      mid: { start: 48, end: 54, label: 'MID (Rows 48–54)' },
+      aft: { start: 55, end: 70, label: 'AFT (Rows 55–70)' }
+    },
+    galleyBefore: 55,
+    locked: true
+  },
+  'custom': {
+    name: 'Custom Fleet',
+    subtitle: 'User Configured',
+    eyStart: 1, eyEnd: 30,
+    seatsPerRow: 9, layoutLabel: '3-3-3',
+    totalSeats: 270,
+    zones: {
+      fwd: { start: 1,  end: 10, label: 'FWD (Rows 1–10)' },
+      mid: { start: 11, end: 20, label: 'MID (Rows 11–20)' },
+      aft: { start: 21, end: 30, label: 'AFT (Rows 21–30)' }
+    },
+    galleyBefore: null,
+    locked: false
+  }
 };
+
+let activeFleetKey = 'A350-MH';
+function getFleet() { return FLEET_CONFIGS[activeFleetKey]; }
+
+// Derived shorthand (kept for backward compat with existing code)
+function EY_START_ROW() { return getFleet().eyStart; }
+function EY_ZONES()     { return getFleet().zones; }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
@@ -1148,17 +1242,17 @@ function renderCrewCards() {
           <div style="flex:1">
             <label class="field-label">Zone</label>
             <select onchange="updateCrew(${crew.id},'zone',this.value)">
-              <option value="fwd" ${crew.zone==='fwd'?'selected':''}>${EY_ZONES.fwd.label}</option>
-              <option value="mid" ${crew.zone==='mid'?'selected':''}>${EY_ZONES.mid.label}</option>
-              <option value="aft" ${crew.zone==='aft'?'selected':''}>${EY_ZONES.aft.label}</option>
+              <option value="fwd" ${crew.zone==='fwd'?'selected':''}>${EY_ZONES().fwd.label}</option>
+              <option value="mid" ${crew.zone==='mid'?'selected':''}>${EY_ZONES().mid.label}</option>
+              <option value="aft" ${crew.zone==='aft'?'selected':''}>${EY_ZONES().aft.label}</option>
             </select>
           </div>
         </div>
         ${crew.role === 'cart' ? `
         <div class="field-row">
           <label class="field-label">Start Row <span style="color:var(--text-dim);font-size:9px">(overrides zone start)</span></label>
-          <input type="number" value="${crew.startRow || ''}" min="${EY_START_ROW}" max="${EY_ZONES.aft.end}"
-            placeholder="default: zone start"
+          <input type="number" value="${crew.startRow || ''}" min="${EY_START_ROW()}" max="${EY_ZONES().aft.end}"
+            placeholder="${EY_ZONES()[crew.zone]?.start || EY_START_ROW()}"
             style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;font-family:var(--mono);font-size:12px;border-radius:4px;outline:none"
             onchange="updateCrew(${crew.id},'startRow',this.value?parseInt(this.value):null)">
         </div>` : `<div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);padding:4px 0 2px;letter-spacing:1px">SPML DELIVERY + CART LOADING + REPLENISHMENT</div>`}
@@ -1201,7 +1295,7 @@ function renderSpml() {
     container.innerHTML += `
       <div class="spml-row">
         <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">Row</span>
-        <input type="number" value="${s.row}" min="${EY_START_ROW}" max="${EY_ZONES.aft.end}"
+        <input type="number" value="${s.row}" min="${EY_START_ROW()}" max="${EY_ZONES().aft.end}"
           onchange="updateSpml(${s.id},'row',parseInt(this.value))">
         <select onchange="updateSpml(${s.id},'type',this.value)">
           ${types.map(t=>`<option ${t===s.type?'selected':''}>${t}</option>`).join('')}
@@ -1219,9 +1313,16 @@ function updateSpml(id, key, val) {
 // ─── CABIN ────────────────────────────────────────────────────────────────────
 function buildCabin() {
   const grid = document.getElementById('cabinGrid');
-  const rows = parseInt(document.getElementById('totalRows').value);
-  const seatsN = parseInt(document.getElementById('seatsPerRow').value);
   const paxPct = parseInt(document.getElementById('paxLoad').value) / 100;
+
+  const fleet = getFleet();
+  const startRow = fleet.eyStart;
+  const endRow = fleet.eyEnd;
+  const rows = endRow - startRow + 1;
+  document.getElementById('totalRows').value = rows;
+  document.getElementById('seatsPerRow').value = fleet.seatsPerRow;
+
+  const seatsN = fleet.seatsPerRow;
 
   // config layout
   let left, mid = 0, right;
@@ -1229,13 +1330,10 @@ function buildCabin() {
   else if (seatsN === 8) { left = 2; mid = 4; right = 2; }
   else { left = 3; mid = 4; right = 3; }
 
-  const startRow = EY_START_ROW;
-  const endRow = startRow + rows - 1;
-
   let html = '';
   for (let r = startRow; r <= endRow; r++) {
-    // Galley/toilet divider between rows 54 and 55
-    if (r === 55) {
+    // Galley/toilet divider
+    if (fleet.galleyBefore && r === fleet.galleyBefore) {
       html += `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;margin:2px 0;background:rgba(42,47,64,0.6);border-top:1px dashed var(--border);border-bottom:1px dashed var(--border)">
         <span style="font-family:var(--mono);font-size:8px;color:var(--text-dim);letter-spacing:1px;white-space:nowrap">◈ GALLEY / LAVS</span>
         <div style="flex:1;height:1px;background:var(--border)"></div>
@@ -1358,11 +1456,11 @@ function runSimulation() {
   // Competency multiplier: expert=0.7x, fast=0.85x, avg=1.0x, slow=1.2x, very slow=1.5x
   const compMult = [0, 1.5, 1.2, 1.0, 0.85, 0.7];
 
-  // Zone row ranges — actual A350 MH Economy cabin layout
+  const zones = EY_ZONES();
   const zoneRanges = {
-    fwd: [EY_ZONES.fwd.start, EY_ZONES.fwd.end],
-    mid: [EY_ZONES.mid.start, EY_ZONES.mid.end],
-    aft: [EY_ZONES.aft.start, EY_ZONES.aft.end]
+    fwd: [zones.fwd.start, zones.fwd.end],
+    mid: [zones.mid.start, zones.mid.end],
+    aft: [zones.aft.start, zones.aft.end]
   };
 
   // Build crew simulation state — cart service crew only
@@ -1781,6 +1879,65 @@ function finishSimulation() {
   switchTab('stats');
 }
 
+// ─── FLEET MANAGEMENT ─────────────────────────────────────────────────────────
+function switchFleet(key) {
+  activeFleetKey = key;
+  const fleet = getFleet();
+
+  // Update button states
+  document.querySelectorAll('.fleet-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(`fleetBtn-${key}`);
+  if (btn) btn.classList.add('active');
+
+  // Show/hide custom inputs
+  document.getElementById('customFleetConfig').style.display = key === 'custom' ? 'block' : 'none';
+
+  // Update display
+  document.getElementById('fleetName').textContent     = fleet.name;
+  document.getElementById('fleetSubtitle').textContent = fleet.subtitle;
+  document.getElementById('fleetRowRange').textContent = `${fleet.eyStart}–${fleet.eyEnd}`;
+  document.getElementById('fleetLayout').textContent   = fleet.layoutLabel;
+  document.getElementById('fleetSeats').textContent    = fleet.totalSeats;
+
+  // Update zone bar widths to reflect actual zone proportions
+  const total = fleet.eyEnd - fleet.eyStart + 1;
+  const fwdW  = fleet.zones.fwd.end - fleet.zones.fwd.start + 1;
+  const midW  = fleet.zones.mid.end - fleet.zones.mid.start + 1;
+  const aftW  = fleet.zones.aft.end - fleet.zones.aft.start + 1;
+  document.getElementById('zoneBarFwd').style.flex = fwdW;
+  document.getElementById('zoneBarMid').style.flex = midW;
+  document.getElementById('zoneBarAft').style.flex = aftW;
+
+  // Rebuild cabin and crew zone dropdowns
+  buildCabin();
+  renderCrewCards();
+}
+
+function applyCustomFleet() {
+  const s   = parseInt(document.getElementById('customEyStart').value)  || 1;
+  const e   = parseInt(document.getElementById('customEyEnd').value)    || 30;
+  const spw = parseInt(document.getElementById('customSeatsPerRow').value) || 9;
+  const fe  = parseInt(document.getElementById('customFwdEnd').value)   || Math.floor(s + (e-s)*0.33);
+  const me  = parseInt(document.getElementById('customMidEnd').value)   || Math.floor(s + (e-s)*0.66);
+  const gal = parseInt(document.getElementById('customGalley').value)   || null;
+
+  const layoutMap = { 9: '3-3-3', 8: '2-4-2', 10: '3-4-3' };
+  FLEET_CONFIGS.custom = {
+    ...FLEET_CONFIGS.custom,
+    eyStart: s, eyEnd: e,
+    seatsPerRow: spw,
+    layoutLabel: layoutMap[spw] || `${spw} seats`,
+    totalSeats: (e - s + 1) * spw,
+    zones: {
+      fwd: { start: s,    end: fe, label: `FWD (Rows ${s}–${fe})`    },
+      mid: { start: fe+1, end: me, label: `MID (Rows ${fe+1}–${me})` },
+      aft: { start: me+1, end: e,  label: `AFT (Rows ${me+1}–${e})`  }
+    },
+    galleyBefore: gal
+  };
+  switchFleet('custom');
+}
+
 // ─── COLLAPSIBLE SECTIONS ─────────────────────────────────────────────────────
 function initCollapsible() {
   document.querySelectorAll('.sidebar-section').forEach((section, i) => {
@@ -1806,9 +1963,11 @@ function initCollapsible() {
 
 function toggleMobileSidebar() {
   const sidebar = document.querySelector('.sidebar');
-  const btn = document.getElementById('mobileSettingsBtn');
-  const isOpen = sidebar.classList.toggle('mobile-open');
-  btn.textContent = isOpen ? '✕ CLOSE' : '⚙ SETTINGS';
+  const overlay = document.getElementById('sidebarOverlay');
+  const btn     = document.getElementById('mobileSettingsBtn');
+  const isOpen  = sidebar.classList.toggle('mobile-open');
+  overlay.classList.toggle('active', isOpen);
+  btn.textContent = isOpen ? '✕' : '⚙';
   btn.classList.toggle('open', isOpen);
 }
 
